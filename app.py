@@ -72,9 +72,9 @@ if "SEASON" not in trend_clean.columns:
 # Robust string conversion to safely transform compound integer years (e.g., 20152016 -> "2015-16")
 def format_season_label(val):
     try:
-        # Strip string artifacts and accurately isolate the first 4 numeric characters
-        raw_digits = str(val).strip().split('.')[0]
-        start_year = int(raw_digits[:4])
+        # Convert to pure string first, clean any spacing or trailing dot decimals
+        raw_str = str(val).strip().split('.')[0]
+        start_year = int(raw_str[:4]) # Isolate first 4 characters securely
         next_year_short = str(start_year + 1)[2:]
         return f"{start_year}-{next_year_short}"
     except Exception:
@@ -134,6 +134,7 @@ weight_corsi = w3.slider("Corsi weight", 0.0, 1.0, 0.20, step=0.05, format="%.2f
 weight_phys = w4.slider("Physical weight", 0.0, 1.0, 0.10, step=0.05, format="%.2f")
 weight_total = max(weight_points + weight_xg + weight_corsi + weight_phys, 0.01)
 
+# Filter global data frames using Pandas
 normalized_df = all_seasons_normalized_df[all_seasons_normalized_df["SEASON"] == selected_season].copy()
 
 norm_cols = ["PTS_NORM", "XG_NORM", "CORSI_NORM", "PHYSICAL_NORM", "CORSI", "XG"]
@@ -151,7 +152,7 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 
-# String-to-float defensive conversion fixes trailing fractional zero errors completely
+# Float conversion defensive formatting fixes trailing decimal zeros completely
 display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(str(v).strip()) * 100:.2f}%" if float(str(v).strip()) <= 1.0 else f"{float(str(v).strip()):.2f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 
@@ -193,4 +194,3 @@ max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 
 breakout_filtered = all_seasons_breakout_df[
     (all_seasons_breakout_df["SEASON"] == selected_season) &
-    (all_seasons_breakout_df["AGE"] <= max_age) &
