@@ -82,7 +82,7 @@ chart = alt.Chart(trend_melted).mark_line(point=True).encode(
     y=alt.Y("Average:Q", title="Value"),
     color=alt.Color("Metric:N", scale=alt.Scale(range=["#1f77b4", "#ff7f0e"])) # Distinct standard colors
 ).properties(
-    height=480 # Increased height parameter making it significantly taller
+    height=600 # Increased height parameter making it significantly taller
 )
 
 # Render the layout using stretch width container alignment. 
