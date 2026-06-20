@@ -19,6 +19,18 @@ trend_all_seasons_df = load_local_data("trend_trends.csv")
 all_seasons_normalized_df = load_local_data("composite_normalized.csv")
 all_seasons_breakout_df = load_local_data("breakout_candidates.csv")
 
+# Exact Official NHL HEX Color Mapping from https://teamcolorcodes.com/nhl-team-color-codes/
+NHL_TEAM_COLORS = {
+    "ANA": "#F47A38", "ARI": "#8C2633", "BOS": "#FFB81C", "BUF": "#003087",
+    "CGY": "#C8102E", "CAR": "#CE1126", "CHI": "#CF1126", "COL": "#6F263D",
+    "CBJ": "#002654", "DAL": "#006847", "DET": "#CE1126", "EDM": "#041E42",
+    "FLA": "#041E42", "LAK": "#111111", "MIN": "#154734", "MTL": "#AF1E2D",
+    "NSH": "#FFB81C", "NJD": "#CE1126", "NYI": "#00539C", "NYR": "#0038A8",
+    "OTT": "#C8102E", "PHI": "#F74902", "PIT": "#FCB514", "STL": "#002F87",
+    "SJS": "#006D75", "SEA": "#001628", "TBL": "#002868", "TOR": "#00205B",
+    "VAN": "#00843D", "VGK": "#B4975A", "WSH": "#C8102E", "WPG": "#041E42"
+}
+
 # ── HEADER ──────────────────────────────────────────────────────────────────
 st.title("🏒 NHL Analytics Pipeline")
 st.caption(
@@ -53,16 +65,16 @@ st.divider()
 # ── LEAGUE SCORING TREND ───────────────────────────────────────────────────
 st.subheader("League-Wide Scoring Trend (11 Seasons)")
 
-# Clean trend extraction to ensure the data columns are parsed correctly
 trend_clean = trend_all_seasons_df.copy()
 if "SEASON" not in trend_clean.columns:
     trend_clean = trend_clean.reset_index()
 
-# Extract only the first 4 characters of the compound year string (e.g., "20152016" -> "2015" -> "2015-16")
+# Robust string conversion to safely transform compound integer years (e.g., 20152016 -> "2015-16")
 def format_season_label(val):
     try:
-        clean_str = str(val).strip().split('.')[0] # Remove potential trailing decimal formatting
-        start_year = int(clean_str[:4]) # Grab the first 4 digits
+        # Strip string artifacts and isolate the first 4 numeric characters cleanly
+        raw_digits = str(val).strip().split('.')[0]
+        start_year = int(raw_digits[:4])
         next_year_short = str(start_year + 1)[2:]
         return f"{start_year}-{next_year_short}"
     except Exception:
@@ -70,7 +82,6 @@ def format_season_label(val):
 
 trend_clean["SEASON_LABEL"] = trend_clean["SEASON"].apply(format_season_label)
 
-# Unpivot data columns for unified multi-line charting
 trend_melted = trend_clean.melt(
     id_vars=["SEASON_LABEL"], 
     value_vars=["AVG_POINTS", "AVG_GOALS"], 
@@ -78,11 +89,11 @@ trend_melted = trend_clean.melt(
     value_name="Average"
 )
 
-# Build a strictly non-interactive, tall graph with horizontally rotated axis text
+# Build a strictly static chart with explicitly configured text properties
 trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
-    x=alt.X("SEASON_LABEL:N", title="Season", sort=None, axis=alt.Axis(labelAngle=0)), # labelAngle=0 rotates text completely horizontal
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None, axis=alt.Axis(labelAngle=0)), # Angle 0 locks titles flat horizontally
     y=alt.Y("Average:Q", title="Value"),
-    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # NHL Navy Blue & Orange
+    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # Timeline Colors (Navy & Orange)
 ).properties(
     height=500 
 )
@@ -99,7 +110,6 @@ st.caption(
     "Drag the weights below to see rankings shift live."
 )
 
-# Pull options from the pre-loaded static dataset
 season_options = sorted(all_seasons_normalized_df["SEASON"].unique().tolist(), reverse=True)
 selected_season = st.selectbox("Season", season_options, index=0)
 
@@ -110,7 +120,6 @@ weight_corsi = w3.slider("Corsi weight", 0, 100, 20)
 weight_phys = w4.slider("Physical weight", 0, 100, 10)
 weight_total = max(weight_points + weight_xg + weight_corsi + weight_phys, 1)
 
-# Filter the global dataset down to the single selected season using Pandas
 normalized_df = all_seasons_normalized_df[all_seasons_normalized_df["SEASON"] == selected_season].copy()
 
 norm_cols = ["PTS_NORM", "XG_NORM", "CORSI_NORM", "PHYSICAL_NORM", "CORSI", "XG"]
@@ -128,23 +137,25 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 
-# Dynamically evaluates fractional formatting to fix trailing decimal zeros completely
 display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 
-# Keep a raw numeric version for chart rendering before casting table strings
 composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
-c1, c2 = st.columns(2) # Pass an explicit length of 2 to fix the TypeError crash
+c1, c2 = st.columns(2)
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
-    # Color mapped to PRIMARY_TEAM using Altair's built-in categorical color scheme (tableau10)
+    # Compile present teams dynamically to map custom domain ranges gracefully
+    present_teams = composite_df["PRIMARY_TEAM"].unique().tolist()
+    color_range = [NHL_TEAM_COLORS.get(team, "#A7A9AC") for team in present_teams]
+    
+    # Custom Styled Altair Bar Chart utilizing precise team color maps
     leaderboard_chart = alt.Chart(composite_df).mark_bar().encode(
         x=alt.X("Composite_Score_Num:Q", title="Composite Score"),
         y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x"), 
-        color=alt.Color("PRIMARY_TEAM:N", title="Team", scale=alt.Scale(scheme="tableau10")) 
+        color=alt.Color("PRIMARY_TEAM:N", title="Team", scale=alt.Scale(domain=present_teams, range=color_range)) 
     ).properties(
         height=440
     )
@@ -164,7 +175,6 @@ max_age = f1.slider("Max age", 18, 30, 23)
 min_corsi = f2.slider("Min Corsi %", 0.40, 0.60, 0.52, step=0.01)
 max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 
-# Filter your dataset using Python instead of sending a new query to Snowflake
 breakout_filtered = all_seasons_breakout_df[
     (all_seasons_breakout_df["SEASON"] == selected_season) &
     (all_seasons_breakout_df["AGE"] <= max_age) &
@@ -180,8 +190,6 @@ breakout_display["Min/GP"] = breakout_filtered["TOI_PER_GAME"]
 breakout_display["Points"] = breakout_filtered["POINTS"]
 breakout_display["PPG"] = breakout_filtered["PPG"].astype(float).map(lambda v: f"{v:.2f}")
 breakout_display["xG/GP"] = breakout_filtered["XG_PER_GAME"].astype(float).map(lambda v: f"{v:.2f}")
-
-# Accurate float parsing ensures the true fractional trailing decimal fields display correctly
 breakout_display["Corsi %"] = breakout_filtered["CORSI_PCT"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
 
 st.dataframe(breakout_display, hide_index=True, use_container_width=True)
