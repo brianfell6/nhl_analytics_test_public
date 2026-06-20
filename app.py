@@ -53,10 +53,12 @@ st.divider()
 # ── LEAGUE SCORING TREND ───────────────────────────────────────────────────
 st.subheader("League-Wide Scoring Trend (11 Seasons)")
 
-# Reset index to extract SEASON as an accessible data column
-trend_clean = trend_all_seasons_df.reset_index()
+# Clean trend extraction to ensure the data columns are parsed correctly
+trend_clean = trend_all_seasons_df.copy()
+if "SEASON" not in trend_clean.columns:
+    trend_clean = trend_clean.reset_index()
 
-# Robust string conversion to convert numeric years (e.g., 2013) to clean string tags (e.g., "2013-14")
+# Clean string parser to convert integer years (e.g., 2013) to clean hyphenated string text tags (e.g., "2013-14")
 def format_season_label(val):
     try:
         year_num = int(float(str(val).strip()))
@@ -67,7 +69,7 @@ def format_season_label(val):
 
 trend_clean["SEASON_LABEL"] = trend_clean["SEASON"].apply(format_season_label)
 
-# Unpivot data for unified multi-line charting
+# Unpivot data columns for unified multi-line charting
 trend_melted = trend_clean.melt(
     id_vars=["SEASON_LABEL"], 
     value_vars=["AVG_POINTS", "AVG_GOALS"], 
@@ -77,14 +79,13 @@ trend_melted = trend_clean.melt(
 
 # Build a strictly non-interactive, tall, cleanly labeled timeline graph
 trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
-    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # :N enforces explicit string sorting order
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # :N enforces explicit nominal string data types
     y=alt.Y("Average:Q", title="Value"),
-    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # Custom NHL Team Colors (Navy & Orange)
+    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # NHL Navy Blue & Orange
 ).properties(
-    height=500 # Explicitly set a taller custom canvas framework 
+    height=500 # Custom canvas heightened parameter frame
 )
 
-# Render using use_container_width=True. Omitting '.interactive()' keeps the canvas completely static.
 st.altair_chart(trend_chart, use_container_width=True)
 
 st.divider()
@@ -126,17 +127,26 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 
-# Dynamically evaluates if Corsi is a fraction (0.523) or standard percentage integer to formatting decimals correctly
+# Dynamically evaluates fractional formatting to fix trailing decimal zeros completely
 display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
+
+# Keep a raw numeric version for chart rendering before casting table strings
+composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
 c1, c2 = st.columns([2, 1])
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
-    chart_df = composite_df.set_index("PLAYER_NAME")["Composite Score"]
-    st.bar_chart(chart_df, height=420)
+    # Custom Styled Altair Bar Chart matching NHL Team Palette Colors
+    leaderboard_chart = alt.Chart(composite_df).mark_bar(color="#00205B").encode(
+        x=alt.X("Composite_Score_Num:Q", title="Composite Score"),
+        y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x") # Automatically keeps rankings sorted highest to lowest
+    ).properties(
+        height=440
+    )
+    st.altair_chart(leaderboard_chart, use_container_width=True)
 
 st.divider()
 
