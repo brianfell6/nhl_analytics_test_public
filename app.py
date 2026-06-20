@@ -52,8 +52,42 @@ st.divider()
 
 # ── LEAGUE SCORING TREND ───────────────────────────────────────────────────
 st.subheader("League-Wide Scoring Trend (11 Seasons)")
-trend_df = trend_all_seasons_df.set_index("SEASON")
-st.line_chart(trend_df, height=350)
+
+# 1. Reset index so 'SEASON' can be manipulated as a column instead of the row index
+trend_clean = trend_all_seasons_df.reset_index()
+
+# 2. Format the numbers to strings like "2025-26" so the axis treats them as clean text tags
+def format_season_label(val):
+    try:
+        year = int(float(val))
+        return f"{year}-{str(year + 1)[2:]}"
+    except:
+        return str(val)
+
+trend_clean["SEASON_LABEL"] = trend_clean["SEASON"].apply(format_season_label)
+
+# 3. Pivot the table so that AVG_POINTS and AVG_GOALS become a tidy key-value pair for line charting
+trend_melted = trend_clean.melt(
+    id_vars=["SEASON_LABEL"], 
+    value_vars=["AVG_POINTS", "AVG_GOALS"], 
+    var_name="Metric", 
+    value_name="Average"
+)
+
+# 4. Build a static, locked Altair chart utilizing direct configurations
+import altair as alt
+
+chart = alt.Chart(trend_melted).mark_line(point=True).encode(
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # N means Nominal text, preserving strict data order
+    y=alt.Y("Average:Q", title="Value"),
+    color=alt.Color("Metric:N", scale=alt.Scale(range=["#1f77b4", "#ff7f0e"])) # Distinct standard colors
+).properties(
+    height=480 # Increased height parameter making it significantly taller
+)
+
+# Render the layout using stretch width container alignment. 
+# Leaving out '.interactive()' ensures it remains a 100% static, locked visualization.
+st.altair_chart(chart, width="stretch")
 
 st.divider()
 
