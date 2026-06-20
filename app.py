@@ -91,7 +91,7 @@ normalized_df["Composite Score"] = (
 
 composite_df = normalized_df.sort_values("Composite Score", ascending=False).head(15).copy()
 
-display_df = composite_df([["PLAYER", "TEAM", "GOALS", "ASSISTS", "POINTS"]]).copy()
+display_df = composite_df[["PLAYER", "TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 display_df["Corsi %"] = (composite_df["CORSI"] * 100).map(lambda v: f"{v:.1f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
