@@ -95,7 +95,7 @@ trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
     y=alt.Y("Average:Q", title="Value"),
     color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # Timeline Colors (Navy & Orange)
 ).properties(
-    height=600 
+    height=500 
 )
 
 st.altair_chart(trend_chart, use_container_width=True)
