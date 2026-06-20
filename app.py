@@ -101,7 +101,7 @@ c1, c2 = st.columns([2, 1])
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
-    chart_df = composite_df.set_index("PLAYER")["Composite Score"]
+    chart_df = composite_df.set_index("PLAYER_NAME")["Composite Score"]
     st.bar_chart(chart_df, height=420)
 
 st.divider()
