@@ -69,12 +69,11 @@ trend_clean = trend_all_seasons_df.copy()
 if "SEASON" not in trend_clean.columns:
     trend_clean = trend_clean.reset_index()
 
-# Robust string conversion to safely transform compound integer years (e.g., 20152016 -> "2015-16")
+# Helper function to isolate the first 4 characters of a season string securely (e.g., "20152016" -> "2015-16")
 def format_season_label(val):
     try:
-        # Convert to pure string first, clean any spacing or trailing dot decimals
-        raw_str = str(val).strip().split('.')[0]
-        start_year = int(raw_str[:4]) # Isolate first 4 characters securely
+        clean_str = str(val).strip().split('.')[0]
+        start_year = int(clean_str[:4])
         next_year_short = str(start_year + 1)[2:]
         return f"{start_year}-{next_year_short}"
     except Exception:
@@ -192,4 +191,7 @@ max_age = f1.slider("Max age", 18, 30, 23)
 min_corsi = f2.slider("Min Corsi %", 0.40, 0.60, 0.52, step=0.01)
 max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 
-# Filter your dataset using Python - closing brackets verified and locked
+# Extract a clean, mutable dataframe copy for breakout processing
+breakout_df_clean = all_seasons_breakout_df.copy()
+
+# Helper function to extract 4-digit years from raw database fields (e.g., 20152016 -> 2015)
