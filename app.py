@@ -9,17 +9,15 @@ st.set_page_config(page_title="NHL Analytics Pipeline", layout="wide")
 def load_local_data(filename: str) -> pd.DataFrame:
     """Load pre-exported query results from the local repository."""
     df = pd.read_csv(filename)
-    # Standardize column casing to uppercase to match Snowflake's default output structure
     df.columns = [col.upper() for col in df.columns]
     return df
 
-# Load datasets locally instead of querying Snowflake live
 counts_df = load_local_data("counts.csv")
 trend_all_seasons_df = load_local_data("trend_trends.csv")
 all_seasons_normalized_df = load_local_data("composite_normalized.csv")
 all_seasons_breakout_df = load_local_data("breakout_candidates.csv")
 
-# Exact Official NHL HEX Color Mapping from https://teamcolorcodes.com
+# Official NHL HEX Color Mapping from https://teamcolorcodes.com
 NHL_TEAM_COLORS = {
     "ANA": "#F47A38", "ARI": "#8C2633", "BOS": "#FFB81C", "BUF": "#003087",
     "CGY": "#C8102E", "CAR": "#CE1126", "CHI": "#CF1126", "COL": "#6F263D",
@@ -69,11 +67,10 @@ trend_clean = trend_all_seasons_df.copy()
 if "SEASON" not in trend_clean.columns:
     trend_clean = trend_clean.reset_index()
 
-# Helper function to isolate the first 4 characters of a season string securely (e.g., "20152016" -> "2015-16")
 def format_season_label(val):
     try:
-        clean_str = str(val).strip().split('.')[0]
-        start_year = int(clean_str[:4])
+        raw_str = str(val).strip().split('.')[0]
+        start_year = int(raw_str[:4])
         next_year_short = str(start_year + 1)[2:]
         return f"{start_year}-{next_year_short}"
     except Exception:
@@ -88,11 +85,10 @@ trend_melted = trend_clean.melt(
     value_name="Average"
 )
 
-# Build a strictly static chart with explicitly configured text properties
 trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
-    x=alt.X("SEASON_LABEL:N", title="Season", sort=None, axis=alt.Axis(labelAngle=0)), # Angle 0 locks titles flat horizontally
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None, axis=alt.Axis(labelAngle=0)), 
     y=alt.Y("Average:Q", title="Value"),
-    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # Timeline Colors (Navy & Orange)
+    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) 
 ).properties(
     height=500 
 )
@@ -116,13 +112,11 @@ with st.expander("📊 How the Composite Score is Calculated", expanded=False):
     **The Math Behind the Model:**
     1. **Min-Max Normalization**: For each season, every player's raw metrics (Points, xG, Corsi %, Hits + Blocks) are scaled to a strict **0.0 to 1.0 range** using the formula:  
        $$\\text{Normalized Stat} = \\frac{\\text{Value} - \\text{Min}}{\\text{Max} - \\text{Min}}$$
-       *A score of 1.0 means that player led the entire league in that category for that season; 0.0 means they were at the bottom.*
     2. **Weighted Combination**: When you adjust the sliders below, your custom weights are added together to create a true percentage allocation ($W_{Total}$). 
     3. **Final Metric Execution**: The system computes the dot-product sum of each player's individual normalized metrics multiplied by your relative weight values:
        $$\\text{Composite Score} = \\left(\\text{Pts}_{\\text{norm}} \\times \\frac{W_{\\text{pts}}}{W_{\\text{total}}}\\right) + \\left(\\text{xG}_{\\text{norm}} \\times \\frac{W_{\\text{xg}}}{W_{\\text{total}}}\\right) + \\left(\\text{Corsi}_{\\text{norm}} \\times \\frac{W_{\\text{corsi}}}{W_{\\text{total}}}\\right) + \\left(\\text{Phys}_{\\text{norm}} \\times \\frac{W_{\\text{phys}}}{W_{\\text{total}}}\\right)$$
     """)
 
-# Pull options from the pre-loaded static dataset
 season_options = sorted(all_seasons_normalized_df["SEASON"].unique().tolist(), reverse=True)
 selected_season = st.selectbox("Season", season_options, index=0)
 
@@ -133,7 +127,6 @@ weight_corsi = w3.slider("Corsi weight", 0.0, 1.0, 0.20, step=0.05, format="%.2f
 weight_phys = w4.slider("Physical weight", 0.0, 1.0, 0.10, step=0.05, format="%.2f")
 weight_total = max(weight_points + weight_xg + weight_corsi + weight_phys, 0.01)
 
-# Filter global data frames using Pandas
 normalized_df = all_seasons_normalized_df[all_seasons_normalized_df["SEASON"] == selected_season].copy()
 
 norm_cols = ["PTS_NORM", "XG_NORM", "CORSI_NORM", "PHYSICAL_NORM", "CORSI", "XG"]
@@ -151,11 +144,9 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 
-# Float conversion defensive formatting fixes trailing decimal zeros completely
 display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(str(v).strip()) * 100:.2f}%" if float(str(v).strip()) <= 1.0 else f"{float(str(v).strip()):.2f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 
-# Keep a raw numeric version for chart rendering before casting table strings
 composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
@@ -163,11 +154,9 @@ c1, c2 = st.columns(2)
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
-    # Compile present teams dynamically to map custom domain ranges gracefully
     present_teams = composite_df["PRIMARY_TEAM"].unique().tolist()
     color_range = [NHL_TEAM_COLORS.get(team, "#A7A9AC") for team in present_teams]
     
-    # Custom Styled Altair Bar Chart utilizing precise team color maps
     leaderboard_chart = alt.Chart(composite_df).mark_bar().encode(
         x=alt.X("Composite_Score_Num:Q", title="Composite Score"),
         y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x"), 
@@ -191,7 +180,35 @@ max_age = f1.slider("Max age", 18, 30, 23)
 min_corsi = f2.slider("Min Corsi %", 0.40, 0.60, 0.52, step=0.01)
 max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 
-# Extract a clean, mutable dataframe copy for breakout processing
 breakout_df_clean = all_seasons_breakout_df.copy()
 
-# Helper function to extract 4-digit years from raw database fields (e.g., 20152016 -> 2015)
+def extract_start_year(val):
+    try:
+        raw_str = str(val).strip().split('.')[0]
+        return int(raw_str[:4])
+    except Exception:
+        return int(val)
+
+def extract_dropdown_year(val):
+    try:
+        raw_str = str(val).strip().split('.')[0]
+        return int(raw_str[:4])
+    except Exception:
+        return int(val)
+
+breakout_df_clean["CLEAN_SEASON"] = breakout_df_clean["SEASON"].apply(extract_start_year)
+target_year = extract_dropdown_year(selected_season)
+
+breakout_filtered = breakout_df_clean[
+    (breakout_df_clean["CLEAN_SEASON"] == target_year) &
+    (breakout_df_clean["AGE"] <= max_age) &
+    (breakout_df_clean["CORSI_PCT"] >= min_corsi) &
+    (breakout_df_clean["TOI_PER_GAME"] <= max_toi)
+].sort_values("XG_PER_GAME", ascending=False).head(15).copy()
+
+breakout_display = pd.DataFrame()
+if not breakout_filtered.empty:
+    breakout_display["Player"] = breakout_filtered["PLAYER_NAME"]
+    breakout_display["Team"] = breakout_filtered["PRIMARY_TEAM"]
+    breakout_display["Age"] = breakout_filtered["AGE"]
+    breakout_display["Min/GP"] = breakout_filtered["TOI_PER_GAME"]
