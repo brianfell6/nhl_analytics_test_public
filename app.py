@@ -78,9 +78,9 @@ trend_melted = trend_clean.melt(
     value_name="Average"
 )
 
-# Build a strictly non-interactive, tall, cleanly labeled timeline graph
+# Build a strictly non-interactive, tall graph with horizontally rotated axis text
 trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
-    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # :N enforces explicit nominal string data types
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None, axis=alt.Axis(labelAngle=0)), # labelAngle=0 rotates text completely horizontal
     y=alt.Y("Average:Q", title="Value"),
     color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # NHL Navy Blue & Orange
 ).properties(
@@ -136,12 +136,11 @@ display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
-c1, c2 = st.columns()
+c1, c2 = st.columns(2) # Pass an explicit length of 2 to fix the TypeError crash
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
     # Color mapped to PRIMARY_TEAM using Altair's built-in categorical color scheme (tableau10)
-    # This automatically gives each team its own distinct, consistent color bar
     leaderboard_chart = alt.Chart(composite_df).mark_bar().encode(
         x=alt.X("Composite_Score_Num:Q", title="Composite Score"),
         y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x"), 
