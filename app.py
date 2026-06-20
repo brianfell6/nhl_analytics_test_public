@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import altair as alt
 
 # ── SETUP ───────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="NHL Analytics Pipeline", layout="wide")
@@ -53,20 +53,21 @@ st.divider()
 # ── LEAGUE SCORING TREND ───────────────────────────────────────────────────
 st.subheader("League-Wide Scoring Trend (11 Seasons)")
 
-# 1. Reset index so 'SEASON' can be manipulated as a column instead of the row index
+# Reset index to extract SEASON as an accessible data column
 trend_clean = trend_all_seasons_df.reset_index()
 
-# 2. Format the numbers to strings like "2025-26" so the axis treats them as clean text tags
+# Robust string conversion to convert numeric years (e.g., 2013) to clean string tags (e.g., "2013-14")
 def format_season_label(val):
     try:
-        year = int(float(val))
-        return f"{year}-{str(year + 1)[2:]}"
-    except:
+        year_num = int(float(str(val).strip()))
+        next_year_short = str(year_num + 1)[2:]
+        return f"{year_num}-{next_year_short}"
+    except Exception:
         return str(val)
 
 trend_clean["SEASON_LABEL"] = trend_clean["SEASON"].apply(format_season_label)
 
-# 3. Pivot the table so that AVG_POINTS and AVG_GOALS become a tidy key-value pair for line charting
+# Unpivot data for unified multi-line charting
 trend_melted = trend_clean.melt(
     id_vars=["SEASON_LABEL"], 
     value_vars=["AVG_POINTS", "AVG_GOALS"], 
@@ -74,20 +75,17 @@ trend_melted = trend_clean.melt(
     value_name="Average"
 )
 
-# 4. Build a static, locked Altair chart utilizing direct configurations
-import altair as alt
-
-chart = alt.Chart(trend_melted).mark_line(point=True).encode(
-    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # N means Nominal text, preserving strict data order
+# Build a strictly non-interactive, tall, cleanly labeled timeline graph
+trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
+    x=alt.X("SEASON_LABEL:N", title="Season", sort=None), # :N enforces explicit string sorting order
     y=alt.Y("Average:Q", title="Value"),
-    color=alt.Color("Metric:N", scale=alt.Scale(range=["#1f77b4", "#ff7f0e"])) # Distinct standard colors
+    color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # Custom NHL Team Colors (Navy & Orange)
 ).properties(
-    height=600 # Increased height parameter making it significantly taller
+    height=500 # Explicitly set a taller custom canvas framework 
 )
 
-# Render the layout using stretch width container alignment. 
-# Leaving out '.interactive()' ensures it remains a 100% static, locked visualization.
-st.altair_chart(chart, width="stretch")
+# Render using use_container_width=True. Omitting '.interactive()' keeps the canvas completely static.
+st.altair_chart(trend_chart, use_container_width=True)
 
 st.divider()
 
@@ -127,7 +125,9 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
-display_df["Corsi %"] = (composite_df["CORSI"] * 100).map(lambda v: f"{v:.1f}%")
+
+# Dynamically evaluates if Corsi is a fraction (0.523) or standard percentage integer to formatting decimals correctly
+display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
@@ -168,7 +168,9 @@ breakout_display["Min/GP"] = breakout_filtered["TOI_PER_GAME"]
 breakout_display["Points"] = breakout_filtered["POINTS"]
 breakout_display["PPG"] = breakout_filtered["PPG"].astype(float).map(lambda v: f"{v:.2f}")
 breakout_display["xG/GP"] = breakout_filtered["XG_PER_GAME"].astype(float).map(lambda v: f"{v:.2f}")
-breakout_display["Corsi %"] = (breakout_filtered["CORSI_PCT"].astype(float) * 100).map(lambda v: f"{v:.1f}%")
+
+# Accurate float parsing ensures the true fractional trailing decimal fields display correctly
+breakout_display["Corsi %"] = breakout_filtered["CORSI_PCT"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
 
 st.dataframe(breakout_display, hide_index=True, use_container_width=True)
 
