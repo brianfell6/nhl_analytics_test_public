@@ -58,12 +58,13 @@ trend_clean = trend_all_seasons_df.copy()
 if "SEASON" not in trend_clean.columns:
     trend_clean = trend_clean.reset_index()
 
-# Clean string parser to convert integer years (e.g., 2013) to clean hyphenated string text tags (e.g., "2013-14")
+# Extract only the first 4 characters of the compound year string (e.g., "20152016" -> "2015" -> "2015-16")
 def format_season_label(val):
     try:
-        year_num = int(float(str(val).strip()))
-        next_year_short = str(year_num + 1)[2:]
-        return f"{year_num}-{next_year_short}"
+        clean_str = str(val).strip().split('.')[0] # Remove potential trailing decimal formatting
+        start_year = int(clean_str[:4]) # Grab the first 4 digits
+        next_year_short = str(start_year + 1)[2:]
+        return f"{start_year}-{next_year_short}"
     except Exception:
         return str(val)
 
@@ -83,7 +84,7 @@ trend_chart = alt.Chart(trend_melted).mark_line(point=True).encode(
     y=alt.Y("Average:Q", title="Value"),
     color=alt.Color("Metric:N", scale=alt.Scale(range=["#00205B", "#F47A38"])) # NHL Navy Blue & Orange
 ).properties(
-    height=500 # Custom canvas heightened parameter frame
+    height=500 
 )
 
 st.altair_chart(trend_chart, use_container_width=True)
@@ -135,14 +136,16 @@ display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
-c1, c2 = st.columns([2, 1])
+c1, c2 = st.columns()
 with c1:
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 with c2:
-    # Custom Styled Altair Bar Chart matching NHL Team Palette Colors
-    leaderboard_chart = alt.Chart(composite_df).mark_bar(color="#00205B").encode(
+    # Color mapped to PRIMARY_TEAM using Altair's built-in categorical color scheme (tableau10)
+    # This automatically gives each team its own distinct, consistent color bar
+    leaderboard_chart = alt.Chart(composite_df).mark_bar().encode(
         x=alt.X("Composite_Score_Num:Q", title="Composite Score"),
-        y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x") # Automatically keeps rankings sorted highest to lowest
+        y=alt.Y("PLAYER_NAME:N", title="Player", sort="-x"), 
+        color=alt.Color("PRIMARY_TEAM:N", title="Team", scale=alt.Scale(scheme="tableau10")) 
     ).properties(
         height=440
     )
