@@ -23,12 +23,12 @@ all_seasons_breakout_df = load_local_data("breakout_candidates.csv")
 NHL_TEAM_COLORS = {
     "ANA": "#F47A38", "ARI": "#8C2633", "BOS": "#FFB81C", "BUF": "#003087",
     "CGY": "#C8102E", "CAR": "#CE1126", "CHI": "#CF1126", "COL": "#6F263D",
-    "CBJ": "#002654", "DAL": "#006847", "DET": "#CE1126", "EDM": "#041E42",
-    "FLA": "#041E42", "LAK": "#111111", "MIN": "#154734", "MTL": "#AF1E2D",
+    "CBJ": "#002654", "DAL": "#006847", "DET": "#CE1126", "EDM": "#FF4C00",
+    "FLA": "#c8102E", "LAK": "#111111", "MIN": "#154734", "MTL": "#AF1E2D",
     "NSH": "#FFB81C", "NJD": "#CE1126", "NYI": "#00539C", "NYR": "#0038A8",
     "OTT": "#C8102E", "PHI": "#F74902", "PIT": "#FCB514", "STL": "#002F87",
     "SJS": "#006D75", "SEA": "#001628", "TBL": "#002868", "TOR": "#00205B",
-    "VAN": "#00843D", "VGK": "#B4975A", "WSH": "#C8102E", "WPG": "#041E42"
+    "VAN": "#00205B", "VGK": "#B4975A", "WSH": "#C8102E", "WPG": "#041E42"
 }
 
 # ── HEADER ──────────────────────────────────────────────────────────────────
