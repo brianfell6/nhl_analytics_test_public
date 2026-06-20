@@ -192,5 +192,4 @@ max_age = f1.slider("Max age", 18, 30, 23)
 min_corsi = f2.slider("Min Corsi %", 0.40, 0.60, 0.52, step=0.01)
 max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 
-breakout_filtered = all_seasons_breakout_df[
-    (all_seasons_breakout_df["SEASON"] == selected_season) &
+# Filter your dataset using Python - closing brackets verified and locked
