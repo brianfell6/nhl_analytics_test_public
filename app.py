@@ -19,11 +19,11 @@ trend_all_seasons_df = load_local_data("trend_trends.csv")
 all_seasons_normalized_df = load_local_data("composite_normalized.csv")
 all_seasons_breakout_df = load_local_data("breakout_candidates.csv")
 
-# Exact Official NHL HEX Color Mapping from https://teamcolorcodes.com/nhl-team-color-codes/
+# Exact Official NHL HEX Color Mapping from https://teamcolorcodes.com
 NHL_TEAM_COLORS = {
     "ANA": "#F47A38", "ARI": "#8C2633", "BOS": "#FFB81C", "BUF": "#003087",
     "CGY": "#C8102E", "CAR": "#CE1126", "CHI": "#CF1126", "COL": "#6F263D",
-    "CBJ": "#002654", "DAL": "#006847", "DET": "#CE1126", "EDM": "#FF4C00",
+    "CBJ": "#002654", "DAL": "#006847", "DET": "#CE1126", "EDM": "#041E42",
     "FLA": "#041E42", "LAK": "#111111", "MIN": "#154734", "MTL": "#AF1E2D",
     "NSH": "#FFB81C", "NJD": "#CE1126", "NYI": "#00539C", "NYR": "#0038A8",
     "OTT": "#C8102E", "PHI": "#F74902", "PIT": "#FCB514", "STL": "#002F87",
@@ -72,7 +72,7 @@ if "SEASON" not in trend_clean.columns:
 # Robust string conversion to safely transform compound integer years (e.g., 20152016 -> "2015-16")
 def format_season_label(val):
     try:
-        # Strip string artifacts and isolate the first 4 numeric characters cleanly
+        # Strip string artifacts and accurately isolate the first 4 numeric characters
         raw_digits = str(val).strip().split('.')[0]
         start_year = int(raw_digits[:4])
         next_year_short = str(start_year + 1)[2:]
@@ -107,18 +107,32 @@ st.subheader("Composite Player Score — Normalized Multi-Stat Model")
 st.caption(
     "Blends scoring, expected goals, possession (Corsi), and physical play into one "
     "normalized score (0–1 scale) so no single stat dominates due to raw magnitude. "
-    "Drag the weights below to see rankings shift live."
+    "Adjust the weight percentages below to see rankings shift live."
 )
 
+with st.expander("📊 How the Composite Score is Calculated", expanded=False):
+    st.markdown("""
+    Because raw stats utilize completely different baseline scales (e.g., a player might have 90 **Points** but only 5 **Expected Goals**), comparing them directly would cause the highest numerical stat to completely override the others. 
+    
+    **The Math Behind the Model:**
+    1. **Min-Max Normalization**: For each season, every player's raw metrics (Points, xG, Corsi %, Hits + Blocks) are scaled to a strict **0.0 to 1.0 range** using the formula:  
+       $$\\text{Normalized Stat} = \\frac{\\text{Value} - \\text{Min}}{\\text{Max} - \\text{Min}}$$
+       *A score of 1.0 means that player led the entire league in that category for that season; 0.0 means they were at the bottom.*
+    2. **Weighted Combination**: When you adjust the sliders below, your custom weights are added together to create a true percentage allocation ($W_{Total}$). 
+    3. **Final Metric Execution**: The system computes the dot-product sum of each player's individual normalized metrics multiplied by your relative weight values:
+       $$\\text{Composite Score} = \\left(\\text{Pts}_{\\text{norm}} \\times \\frac{W_{\\text{pts}}}{W_{\\text{total}}}\\right) + \\left(\\text{xG}_{\\text{norm}} \\times \\frac{W_{\\text{xg}}}{W_{\\text{total}}}\\right) + \\left(\\text{Corsi}_{\\text{norm}} \\times \\frac{W_{\\text{corsi}}}{W_{\\text{total}}}\\right) + \\left(\\text{Phys}_{\\text{norm}} \\times \\frac{W_{\\text{phys}}}{W_{\\text{total}}}\\right)$$
+    """)
+
+# Pull options from the pre-loaded static dataset
 season_options = sorted(all_seasons_normalized_df["SEASON"].unique().tolist(), reverse=True)
 selected_season = st.selectbox("Season", season_options, index=0)
 
 w1, w2, w3, w4 = st.columns(4)
-weight_points = w1.slider("Points weight", 0, 100, 40)
-weight_xg = w2.slider("xG weight", 0, 100, 30)
-weight_corsi = w3.slider("Corsi weight", 0, 100, 20)
-weight_phys = w4.slider("Physical weight", 0, 100, 10)
-weight_total = max(weight_points + weight_xg + weight_corsi + weight_phys, 1)
+weight_points = w1.slider("Points weight", 0.0, 1.0, 0.40, step=0.05, format="%.2f")
+weight_xg = w2.slider("xG weight", 0.0, 1.0, 0.30, step=0.05, format="%.2f")
+weight_corsi = w3.slider("Corsi weight", 0.0, 1.0, 0.20, step=0.05, format="%.2f")
+weight_phys = w4.slider("Physical weight", 0.0, 1.0, 0.10, step=0.05, format="%.2f")
+weight_total = max(weight_points + weight_xg + weight_corsi + weight_phys, 0.01)
 
 normalized_df = all_seasons_normalized_df[all_seasons_normalized_df["SEASON"] == selected_season].copy()
 
@@ -137,9 +151,11 @@ composite_df = normalized_df.sort_values("Composite Score", ascending=False).hea
 display_df = composite_df[["PLAYER_NAME", "PRIMARY_TEAM", "GOALS", "ASSISTS", "POINTS"]].copy()
 display_df.columns = ["Player", "Team", "Goals", "Assists", "Points"]
 
-display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
+# String-to-float defensive conversion fixes trailing fractional zero errors completely
+display_df["Corsi %"] = composite_df["CORSI"].apply(lambda v: f"{float(str(v).strip()) * 100:.2f}%" if float(str(v).strip()) <= 1.0 else f"{float(str(v).strip()):.2f}%")
 display_df["xG"] = composite_df["XG"].map(lambda v: f"{v:.1f}")
 
+# Keep a raw numeric version for chart rendering before casting table strings
 composite_df["Composite_Score_Num"] = composite_df["Composite Score"]
 display_df["Composite Score"] = composite_df["Composite Score"].map(lambda v: f"{v:.2f}")
 
@@ -178,21 +194,3 @@ max_toi = f3.slider("Max minutes/game", 8.0, 20.0, 14.0, step=0.5)
 breakout_filtered = all_seasons_breakout_df[
     (all_seasons_breakout_df["SEASON"] == selected_season) &
     (all_seasons_breakout_df["AGE"] <= max_age) &
-    (all_seasons_breakout_df["CORSI_PCT"] >= min_corsi) &
-    (all_seasons_breakout_df["TOI_PER_GAME"] <= max_toi)
-].sort_values("XG_PER_GAME", ascending=False).head(15).copy()
-
-breakout_display = pd.DataFrame()
-breakout_display["Player"] = breakout_filtered["PLAYER_NAME"]
-breakout_display["Team"] = breakout_filtered["PRIMARY_TEAM"]
-breakout_display["Age"] = breakout_filtered["AGE"]
-breakout_display["Min/GP"] = breakout_filtered["TOI_PER_GAME"]
-breakout_display["Points"] = breakout_filtered["POINTS"]
-breakout_display["PPG"] = breakout_filtered["PPG"].astype(float).map(lambda v: f"{v:.2f}")
-breakout_display["xG/GP"] = breakout_filtered["XG_PER_GAME"].astype(float).map(lambda v: f"{v:.2f}")
-breakout_display["Corsi %"] = breakout_filtered["CORSI_PCT"].apply(lambda v: f"{float(v) * 100:.1f}%" if float(v) <= 1.0 else f"{float(v):.1f}%")
-
-st.dataframe(breakout_display, hide_index=True, use_container_width=True)
-
-st.divider()
-st.caption("Built entirely with Python, PostgreSQL, and Snowflake — full pipeline self-designed and self-debugged.")
